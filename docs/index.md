@@ -1,5 +1,6 @@
 # CLAMS appliance
 
+CLAMS appliance aims at providing scripts to build and run dockerized CLAMS apps and workflow engine. 
 
 <!-- Global site tag (gtag.js) - Google Analytics -->
 
