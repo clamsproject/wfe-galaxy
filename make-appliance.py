@@ -127,7 +127,9 @@ def build_docker_image(dir_name):
 def gen_app_config_xml(app_name, port):
     curl_cmd = f"curl -X PUT -H 'Content-Type: application/json' -d @$input {app_name}:{port} > $output"
     config_xml_tree = ET.parse(pjoin(app_name, 'config.xml'))
-    config_xml_tree.find('command').text = curl_cmd
+    command_tag = config_xml_tree.find('command')
+    command_tag.text = curl_cmd
+    del command_tag.attrib['interpreter']
     config_xml_tree.write(pjoin(get_tool_config_xml_fullpath(app_name)), encoding='utf-8')
     return config_xml_tree
 
