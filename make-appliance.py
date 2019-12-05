@@ -13,6 +13,7 @@ APPS = 'apps'
 CONSUMERS = 'consumers'
 GALAXY_LOCAL_PATH = 'clams-galaxy'
 DOCKER_NETWORK_NAME = 'clams-appliance'
+CONTAINER_DATA_PATH = '/var/archive'
 
 
 def get_docker_image_name(app_name):
@@ -30,14 +31,16 @@ def download_galaxy_mods():
 
 def create_docker_compose(config, rebuild=False):
     app_names = config[APPS].keys()
+    prefixed_app_names = list(map(lambda x: 'app-' + x, app_names))
     consumer_names = config[CONSUMERS].keys()
     if rebuild:
-        for name in app_names + consumer_names + [GALAXY_LOCAL_PATH]:
+        for name in prefixed_app_names + list(map(lambda x: 'consumer-'+x, consumer_names)) + [GALAXY_LOCAL_PATH]:
             shutil.rmtree(name)
-    docker_compose = prep_galaxy(app_names)
+    docker_compose = prep_galaxy(prefixed_app_names, config[STORAGE_PATH])
     process_all_apps(config[APPS], docker_compose)
-    process_all_consumers(config[CONSUMERS], docker_compose)
-    docker_build(pjoin(GALAXY_LOCAL_PATH, 'Dockerfile'), GALAXY_LOCAL_PATH, get_docker_image_name(GALAXY_LOCAL_PATH))
+    process_all_consumers(config[CONSUMERS], docker_compose, config[STORAGE_PATH])
+    gen_db_loc_files(config[STORAGE_PATH])
+    docker_build(pjoin(GALAXY_LOCAL_PATH, 'Dockerfile'), GALAXY_LOCAL_PATH, get_docker_image_name(GALAXY_LOCAL_PATH), use_cached=False)
     with open('docker-compose.yml', 'w') as compose_file:
         yaml.SafeDumper.add_representer(
             type(None),
@@ -51,12 +54,13 @@ def create_base_compose_obj():
     return {'version': '3', 'services': {}, 'networks': {DOCKER_NETWORK_NAME: None}}
 
 
-def prep_galaxy(dependencies):
+def prep_galaxy(dependencies, host_data_path):
     download_galaxy_mods()
     compose_obj = create_base_compose_obj()
     galaxy_service = get_service_def(GALAXY_LOCAL_PATH, 8080)
     galaxy_service[GALAXY_LOCAL_PATH].update({'privileged': 'true', 'depends_on': dependencies})
-    compose_obj['services'].update(get_service_def(GALAXY_LOCAL_PATH, 8080))
+    compose_obj['services'].update(galaxy_service)
+    add_data_volume(GALAXY_LOCAL_PATH, compose_obj, host_data_path)
     return compose_obj
 
 
@@ -85,7 +89,7 @@ def get_tool_config_xml_filename(app_name):
     return get_docker_image_name(app_name) + '.xml'
 
 
-def process_all_consumers(consumers_config, docker_compose_obj):
+def process_all_consumers(consumers_config, docker_compose_obj, host_data_path):
     datatypes_conf_path = pjoin(GALAXY_LOCAL_PATH, 'config', 'datatypes_conf.xml')
     datatypes_conf_tree = ET.parse(datatypes_conf_path)
     for port, (consumer_name, consumer_config) in enumerate(consumers_config.items(), 9001):
@@ -93,6 +97,7 @@ def process_all_consumers(consumers_config, docker_compose_obj):
         download(consumer_name, consumer_config)
         build_docker_image(consumer_name)
         add_to_docker_compose(consumer_name, docker_compose_obj, port)
+        add_data_volume(consumer_name, docker_compose_obj, host_data_path)
         gen_display_app_xml(consumer_name, port, consumer_config['description'])
         add_to_datatypes_conf_xml(datatypes_conf_tree, consumer_name)
     datatypes_conf_tree.write(datatypes_conf_path, encoding='utf-8')
@@ -108,6 +113,11 @@ def get_display_app_xml_filename(consumer_name):
 
 def add_to_docker_compose(dir_name, docker_compose_obj, port):
     docker_compose_obj['services'].update(get_service_def(dir_name, port))
+
+
+def add_data_volume(dir_name, docker_compose_obj, host_data_path):
+    # 'ro' for read-only
+    docker_compose_obj['services'][dir_name].update({'volumes': [f'{host_data_path}:{CONTAINER_DATA_PATH}:ro']})
 
 
 def build_docker_image(dir_name):
@@ -149,9 +159,18 @@ def gen_display_app_xml(consumer_name, port, description):
 def add_to_datatypes_conf_xml(datatypes_conf_tree: ET.ElementTree, consumer_name):
     display_tag = ET.Element('display', {'file': get_display_app_xml_filename(consumer_name)})
     for dt in datatypes_conf_tree.find('registration').findall('datatype'):
-        if dt.attrib['extension'] == 'mmif':
+        if dt.attrib['extension'] == 'json':
             dt.append(display_tag)
 
+
+def gen_db_loc_files(host_data_path):
+    for mtype in ['text', 'video', 'image', 'audio']:
+        type_path = pjoin(host_data_path, mtype)
+        if os.path.exists(type_path) and os.path.isdir(type_path):
+            with open(pjoin(GALAXY_LOCAL_PATH, 'tool-data', f'{mtype}db.loc'), 'w') as loc_file:
+                for f_name in os.listdir(type_path):
+                    if os.path.isfile(pjoin(type_path, f_name)):
+                        loc_file.write(f'{f_name}\t{pjoin(CONTAINER_DATA_PATH, f_name)}\n')
 
 
 def download(app_name, app_config):
