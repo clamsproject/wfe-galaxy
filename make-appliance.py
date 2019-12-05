@@ -65,7 +65,7 @@ def prep_galaxy(dependencies, host_data_path):
 
 
 def get_service_def(dir_name, port):
-    return {dir_name: {'image': get_docker_image_name(dir_name), 'networks': [DOCKER_NETWORK_NAME], 'ports': [f'{port}:5000']}}
+    return {dir_name: {'image': get_docker_image_name(dir_name), 'container_name': dir_name, 'networks': [DOCKER_NETWORK_NAME], 'ports': [f'{port}:5000']}}
 
 
 def process_all_apps(apps_config, docker_compose_obj):
