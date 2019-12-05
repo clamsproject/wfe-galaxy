@@ -65,13 +65,21 @@ def prep_galaxy(dependencies, host_data_path):
 
 
 def get_service_def(dir_name, port):
-    return {dir_name: {'image': get_docker_image_name(dir_name), 'container_name': dir_name, 'networks': [DOCKER_NETWORK_NAME], 'ports': [f'{port}:5000']}}
+    service_def = {dir_name: {
+        'image': get_docker_image_name(dir_name),
+        'container_name': dir_name,
+        'networks': [DOCKER_NETWORK_NAME],
+    }}
+    if port != 5000:
+        service_def[dir_name]['ports'] = [f'{port}:5000']
+    return service_def
 
 
 def process_all_apps(apps_config, docker_compose_obj):
     tool_conf_path = pjoin(GALAXY_LOCAL_PATH, 'config', 'tool_conf.xml')
     tool_conf_tree = ET.parse(tool_conf_path)
-    for port, (app_name, app_config) in enumerate(apps_config.items(), 8001):
+    port = 5000
+    for host_port, (app_name, app_config) in enumerate(apps_config.items(), 8001):
         app_name = f'app-{app_name}'
         download(app_name, app_config)
         build_docker_image(app_name)
@@ -125,7 +133,7 @@ def build_docker_image(dir_name):
 
 
 def gen_app_config_xml(app_name, port):
-    curl_cmd = f"curl -X PUT -H 'Content-Type: application/json' -d @$input {app_name}:{port} > $output"
+    curl_cmd = f"curl -s -X PUT -H 'Content-Type: application/json' -d @$input {app_name}:{port} > $output"
     config_xml_tree = ET.parse(pjoin(app_name, 'config.xml'))
     command_tag = config_xml_tree.find('command')
     command_tag.text = curl_cmd
@@ -153,8 +161,8 @@ def gen_display_app_xml(consumer_name, port, description):
     display_tag = ET.Element('display', {'id': consumer_name, 'version': '1.0.0', 'name': description})
     link_tag = ET.SubElement(display_tag, 'link', {'id': 'open', 'name': 'open'})
     url_tag = ET.SubElement(link_tag, 'url')
-    url_tag.text = f'{consumer_name}:{port}'
-    param_tag = ET.SubElement(link_tag, 'parms', {'type': 'data', 'name': 'txt_file', 'url': 'galaxy.txt'})
+    url_tag.text = f'http://localhost:{port}/display?file=${{txt_file.qp}}'
+    param_tag = ET.SubElement(link_tag, 'param', {'type': 'data', 'name': 'txt_file', 'url': 'galaxy.txt'})
     ET.ElementTree(display_tag).write(pjoin(get_display_app_xml_fullpath(consumer_name)), encoding='utf-8')
 
 
