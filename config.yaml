@@ -1,0 +1,25 @@
+storage_path: /Users/krim/demo-archive
+apps:
+  gentle-pretokens:
+    enabled: True
+    repository: https://github.com/clamsproject/app-gentle-forced-aligner.git
+    branch: pretokens
+  gentle:
+    enabled: True
+    repository: https://github.com/clamsproject/app-gentle-forced-aligner.git
+  dlib-facedetection:
+    enabled: True
+    repository: https://github.com/clamsproject/app-dlib-facedetection-wrapper.git
+  bardetection:
+    enabled: True
+    repository: https://github.com/clamsproject/app-barsdetection.git
+  spacy:
+    enabled: True
+    repository: https://github.com/clamsproject/app-spacy-nlp.git
+consumers:
+  mmif-viz:
+    enabled: True
+    repository: https://github.com/clamsproject/mmif-visualizer.git
+    description: "Display MMIF annotations"
+
+
