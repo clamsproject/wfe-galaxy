@@ -57,8 +57,14 @@ def create_base_compose_obj():
 def prep_galaxy(dependencies, host_data_path):
     download_galaxy_mods()
     compose_obj = create_base_compose_obj()
-    galaxy_service = get_service_def(GALAXY_LOCAL_PATH, 8080)
-    galaxy_service[GALAXY_LOCAL_PATH].update({'privileged': 'true', 'depends_on': dependencies})
+    galaxy_service = {GALAXY_LOCAL_PATH: {
+        'image': GALAXY_LOCAL_PATH,
+        'container_name': GALAXY_LOCAL_PATH,
+        'networks': [DOCKER_NETWORK_NAME],
+        'port': [f'8080:5000'],
+        'privileged': 'true',
+        'depends_on': dependencies}
+    }
     compose_obj['services'].update(galaxy_service)
     add_data_volume(GALAXY_LOCAL_PATH, compose_obj, host_data_path)
     return compose_obj
