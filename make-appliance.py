@@ -35,9 +35,12 @@ def create_docker_compose(config, rebuild=False):
     consumer_names = config[CONSUMERS].keys()
     if rebuild:
         for name in prefixed_app_names + list(map(lambda x: 'consumer-'+x, consumer_names)) + [GALAXY_LOCAL_PATH]:
-            shutil.rmtree(name)
+            try:
+                shutil.rmtree(name)
+            except FileNotFoundError: 
+                pass
     docker_compose = prep_galaxy(prefixed_app_names, config[STORAGE_PATH])
-    process_all_apps(config[APPS], docker_compose)
+    process_all_apps(config[APPS], docker_compose, config[STORAGE_PATH])
     process_all_consumers(config[CONSUMERS], docker_compose, config[STORAGE_PATH])
     gen_db_loc_files(config[STORAGE_PATH])
     docker_build(pjoin(GALAXY_LOCAL_PATH, 'Dockerfile'), GALAXY_LOCAL_PATH, get_docker_image_name(GALAXY_LOCAL_PATH), use_cached=False)
@@ -75,7 +78,7 @@ def get_service_def(dir_name, port):
     return service_def
 
 
-def process_all_apps(apps_config, docker_compose_obj):
+def process_all_apps(apps_config, docker_compose_obj, host_data_path):
     tool_conf_path = pjoin(GALAXY_LOCAL_PATH, 'config', 'tool_conf.xml')
     tool_conf_tree = ET.parse(tool_conf_path)
     port = 5000
@@ -84,6 +87,7 @@ def process_all_apps(apps_config, docker_compose_obj):
         download(app_name, app_config)
         build_docker_image(app_name)
         add_to_docker_compose(app_name, docker_compose_obj, port)
+        add_data_volume(app_name, docker_compose_obj, host_data_path)
         config_xml_tree = gen_app_config_xml(app_name, port)
         add_to_tool_conf_xml(tool_conf_tree, config_xml_tree, app_name)
     tool_conf_tree.write(tool_conf_path, encoding='utf-8')
@@ -180,7 +184,7 @@ def gen_db_loc_files(host_data_path):
             with open(pjoin(GALAXY_LOCAL_PATH, 'tool-data', f'{mtype}db.loc'), 'w') as loc_file:
                 for f_name in os.listdir(type_path):
                     if os.path.isfile(pjoin(type_path, f_name)):
-                        loc_file.write(f'{f_name}\t{pjoin(CONTAINER_DATA_PATH, f_name)}\n')
+                        loc_file.write(f'{f_name}\t{pjoin(CONTAINER_DATA_PATH, mtype, f_name)}\n')
 
 
 def download(app_name, app_config):
