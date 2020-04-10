@@ -1,7 +1,8 @@
 #! /usr/bin/env python3
-import shutil
-
 import yaml
+
+import shutil
+import socket
 import subprocess
 import os
 from os.path import join as pjoin
@@ -14,7 +15,7 @@ CONSUMERS = 'consumers'
 GALAXY_LOCAL_PATH = 'clams-galaxy'
 DOCKER_NETWORK_NAME = 'clams-appliance'
 CONTAINER_DATA_PATH = '/var/archive'
-
+HOSTNAME = socket.gethostname()
 
 def get_docker_image_name(app_name):
     return f"clams-{app_name}"
@@ -61,7 +62,9 @@ def prep_galaxy(dependencies, host_data_path):
     download_galaxy_mods()
     compose_obj = create_base_compose_obj()
     galaxy_service = get_service_def(GALAXY_LOCAL_PATH, 8080)
-    galaxy_service[GALAXY_LOCAL_PATH].update({'privileged': 'true', 'depends_on': dependencies})
+    # even though we configure `http` address to be bound to 0.0.0.0:5000 in galaxy.yml, 
+    # external communication still needs to be using port 80 for underlying wsgi modules to work
+    galaxy_service[GALAXY_LOCAL_PATH].update({'privileged': 'true', 'depends_on': dependencies, 'ports': ['8080:80']})
     compose_obj['services'].update(galaxy_service)
     add_data_volume(GALAXY_LOCAL_PATH, compose_obj, host_data_path)
     return compose_obj
@@ -90,7 +93,7 @@ def process_all_apps(apps_config, docker_compose_obj, host_data_path):
         add_data_volume(app_name, docker_compose_obj, host_data_path)
         config_xml_tree = gen_app_config_xml(app_name, port)
         add_to_tool_conf_xml(tool_conf_tree, config_xml_tree, app_name)
-    tool_conf_tree.write(tool_conf_path, encoding='utf-8')
+    tool_conf_tree.write(tool_conf_path, encoding='utf-8', xml_declaration=True)
 
 
 def get_tool_config_xml_fullpath(app_name):
@@ -165,7 +168,7 @@ def gen_display_app_xml(consumer_name, port, description):
     display_tag = ET.Element('display', {'id': consumer_name, 'version': '1.0.0', 'name': description})
     link_tag = ET.SubElement(display_tag, 'link', {'id': 'open', 'name': 'open'})
     url_tag = ET.SubElement(link_tag, 'url')
-    url_tag.text = f'http://localhost:{port}/display?file=${{txt_file.qp}}'
+    url_tag.text = f'http://{HOSTNAME}:{port}/display?file=${{txt_file.qp}}'
     param_tag = ET.SubElement(link_tag, 'param', {'type': 'data', 'name': 'txt_file', 'url': 'galaxy.txt'})
     ET.ElementTree(display_tag).write(pjoin(get_display_app_xml_fullpath(consumer_name)), encoding='utf-8')
 
