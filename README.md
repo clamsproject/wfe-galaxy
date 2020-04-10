@@ -27,7 +27,7 @@ An example configuration file is provided as [config.yaml](config.yaml). Configu
   ```
   * `repository`: a git address to obtain the app source code.
   * `enabled`: `True` to include in the appliance, `False` to exclude. 
-  * `branch` (optional): if the code to use is not on the `master` branch, use this optional key to specify git ref of the code to use. 
+  * `branch` (optional): if the code to use is not on the `master` branch, use this optional key to specify git branch or tag name of the code to use. 
 * `consumers` (MMIF consumer configuration): List of MMIF consumer app objects. MMIF is output file from CLAMS app (json formatted). Using `consumers` configuration, you can add buttons to call external software that use MMIF as input (e.g. for visualization) to the Galaxy interface. Addition to three configuration keys for an app object (`enabled`, `repository`, `branch`), a consumer object must be configured with `description` field that holds a short human friendly description of the external software. For example; 
   ``` yaml
   mmif-viz:
