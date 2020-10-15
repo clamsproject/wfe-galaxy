@@ -74,3 +74,9 @@ docs/.*cache
 
 # vim
 .*.swp
+
+# appliance build files 
+app-*
+consumer-*
+clams-galaxy
+docker-compose.yml
