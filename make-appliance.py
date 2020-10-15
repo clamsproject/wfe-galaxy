@@ -11,35 +11,52 @@ import xml.etree.ElementTree as ET
 
 STORAGE_PATH = 'storage_path'
 APPS = 'apps'
+APP_PREFIX = 'app-'
 CONSUMERS = 'consumers'
+CONSUMER_PREFIX = 'consumer-'
 GALAXY_LOCAL_PATH = 'clams-galaxy'
 DOCKER_NETWORK_NAME = 'clams-appliance'
 CONTAINER_DATA_PATH = '/var/archive'
 HOSTNAME = socket.gethostname()
+DEVELOP=False
+
 
 def get_docker_image_name(app_name):
     return f"clams-{app_name}"
 
 
+def clean(directory):
+    import shutil
+    for f in os.listdir(directory):
+        if f.startswith(APP_PREFIX) or f.startswith(CONSUMER_PREFIX) or f == GALAXY_LOCAL_PATH:
+            d = pjoin('.', f)
+            if os.path.islink(d):
+                os.unlink(d)
+            elif os.path.isdir(d):
+                shutil.rmtree(d)
+    try:
+        os.remove('docker-compose.yml', )
+    except OSError:
+        pass
+
+
 def read_config(config_file_path):
-    return yaml.load(open(config_file_path).read())
+    configs = yaml.load(open(config_file_path).read())
+    configs[STORAGE_PATH] = os.path.expandvars(os.path.expanduser(configs[STORAGE_PATH]))
+    return configs
 
 
 def download_galaxy_mods():
     if not os.path.exists(GALAXY_LOCAL_PATH):
-        git_clone('https://github.com/clamsproject/clams-galaxy.git', GALAXY_LOCAL_PATH, ['--branch', 'dev'])
+        git_clone('https://github.com/clamsproject/clams-galaxy.git', GALAXY_LOCAL_PATH, ['--branch', 'develop'])
 
 
-def create_docker_compose(config, rebuild=False):
-    app_names = config[APPS].keys()
-    prefixed_app_names = list(map(lambda x: 'app-' + x, app_names))
-    consumer_names = config[CONSUMERS].keys()
+def create_docker_compose(config, rebuild=False, develop=False):
+    global DEVELOP
+    DEVELOP = develop
     if rebuild:
-        for name in prefixed_app_names + list(map(lambda x: 'consumer-'+x, consumer_names)) + [GALAXY_LOCAL_PATH]:
-            try:
-                shutil.rmtree(name)
-            except FileNotFoundError: 
-                pass
+        clean('.')
+    prefixed_app_names = list(map(lambda x: APP_PREFIX + x, config[APPS].keys()))
     docker_compose = prep_galaxy(prefixed_app_names, config[STORAGE_PATH])
     process_all_apps(config[APPS], docker_compose, config[STORAGE_PATH])
     process_all_consumers(config[CONSUMERS], docker_compose, config[STORAGE_PATH])
@@ -86,7 +103,7 @@ def process_all_apps(apps_config, docker_compose_obj, host_data_path):
     tool_conf_tree = ET.parse(tool_conf_path)
     port = 5000
     for host_port, (app_name, app_config) in enumerate(apps_config.items(), 8001):
-        app_name = f'app-{app_name}'
+        app_name = f'{APP_PREFIX}{app_name}'
         download(app_name, app_config)
         build_docker_image(app_name)
         add_to_docker_compose(app_name, docker_compose_obj, port)
@@ -108,7 +125,7 @@ def process_all_consumers(consumers_config, docker_compose_obj, host_data_path):
     datatypes_conf_path = pjoin(GALAXY_LOCAL_PATH, 'config', 'datatypes_conf.xml')
     datatypes_conf_tree = ET.parse(datatypes_conf_path)
     for port, (consumer_name, consumer_config) in enumerate(consumers_config.items(), 9001):
-        consumer_name = f'consumer-{consumer_name}'
+        consumer_name = f'{CONSUMER_PREFIX}{consumer_name}'
         download(consumer_name, consumer_config)
         build_docker_image(consumer_name)
         add_to_docker_compose(consumer_name, docker_compose_obj, port)
@@ -186,7 +203,7 @@ def gen_db_loc_files(host_data_path):
         if os.path.exists(type_path) and os.path.isdir(type_path):
             with open(pjoin(GALAXY_LOCAL_PATH, 'tool-data', f'{mtype}db.loc'), 'w') as loc_file:
                 for f_name in os.listdir(type_path):
-                    if os.path.isfile(pjoin(type_path, f_name)):
+                    if os.path.isfile(pjoin(type_path, f_name)) and not f_name.startswith('.'):
                         loc_file.write(f'{f_name}\t{pjoin(CONTAINER_DATA_PATH, mtype, f_name)}\n')
 
 
@@ -200,7 +217,10 @@ def download(app_name, app_config):
 
 
 def git_clone(repo_url, clone_dir, more_params=[]):
-    subprocess.run(['git', 'clone', '--depth', '1'] + more_params + [ repo_url, clone_dir])
+    if DEVELOP:
+        os.symlink(pjoin('..', clone_dir), clone_dir)
+    else:
+        subprocess.run(['git', 'clone', '--depth', '1'] + more_params + [ repo_url, clone_dir])
 
 
 def docker_build(docker_file_path, build_context, image_name, use_cached=True):
@@ -216,10 +236,13 @@ def docker_run(image_name, container_name):
 
 if __name__ == '__main__':
     import argparse
-    import argparse
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description="Make a CLAMS-Galaxy appliance using docker-compose"
+    )
+    parser.add_argument(
+        '-d', '--develop',
+        action='store_true',
+        help='Run the script in *develop* mode. In develop mode Galaxy, apps, and consumers are copied from local file system, instead of being downloaded from github.'
     )
     parser.add_argument(
         '-f', '--force-rebuild',
@@ -228,6 +251,5 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-
-    create_docker_compose(read_config('config.yaml'), args.force_rebuild)
+    create_docker_compose(read_config('config.yaml'), args.force_rebuild, args.develop)
     # subprocess.run(['docker-compose', 'up'])
