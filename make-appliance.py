@@ -1,7 +1,6 @@
 #! /usr/bin/env python3
 import yaml
 
-import shutil
 import socket
 import subprocess
 import os
@@ -14,7 +13,13 @@ APPS = 'apps'
 APP_PREFIX = 'app-'
 CONSUMERS = 'consumers'
 CONSUMER_PREFIX = 'consumer-'
+# local directory to clone clams-galaxy on the host
 GALAXY_LOCAL_PATH = 'clams-galaxy'
+# hostname given to the container instantiated from the cloned clams-galaxy
+GALAXY_CONTNAME = 'clams-galaxy'
+# fixed by galaxy-stable image
+GALAXY_CONTPORT = '80'
+GALAXY_HOSTPORT = '8080'
 DOCKER_NETWORK_NAME = 'clams-appliance'
 CONTAINER_DATA_PATH = '/var/archive'
 HOSTNAME = socket.gethostname()
@@ -78,23 +83,23 @@ def create_base_compose_obj():
 def prep_galaxy(dependencies, host_data_path):
     download_galaxy_mods()
     compose_obj = create_base_compose_obj()
-    galaxy_service = get_service_def(GALAXY_LOCAL_PATH, 8080)
+    galaxy_service = get_service_def(GALAXY_CONTNAME, int(GALAXY_HOSTPORT))
     # even though we configure `http` address to be bound to 0.0.0.0:5000 in galaxy.yml, 
     # external communication still needs to be using port 80 for underlying wsgi modules to work
-    galaxy_service[GALAXY_LOCAL_PATH].update({'privileged': 'true', 'depends_on': dependencies, 'ports': ['8080:80']})
+    galaxy_service[GALAXY_CONTNAME].update({'privileged': 'true', 'depends_on': dependencies, 'ports': [f'{GALAXY_HOSTPORT}:{GALAXY_CONTPORT}']})
     compose_obj['services'].update(galaxy_service)
-    add_data_volume(GALAXY_LOCAL_PATH, compose_obj, host_data_path)
+    add_data_volume(GALAXY_CONTNAME, compose_obj, host_data_path)
     return compose_obj
 
 
-def get_service_def(dir_name, port):
-    service_def = {dir_name: {
-        'image': get_docker_image_name(dir_name),
-        'container_name': dir_name,
+def get_service_def(cont_hostname, port):
+    service_def = {cont_hostname: {
+        'image': get_docker_image_name(cont_hostname),
+        'container_name': cont_hostname,
         'networks': [DOCKER_NETWORK_NAME],
     }}
     if port != 5000:
-        service_def[dir_name]['ports'] = [f'{port}:5000']
+        service_def[cont_hostname]['ports'] = [f'{port}:5000']
     return service_def
 
 
@@ -143,13 +148,13 @@ def get_display_app_xml_filename(consumer_name):
     return get_docker_image_name(consumer_name) + '.xml'
 
 
-def add_to_docker_compose(dir_name, docker_compose_obj, port):
-    docker_compose_obj['services'].update(get_service_def(dir_name, port))
+def add_to_docker_compose(cont_hostname, docker_compose_obj, port):
+    docker_compose_obj['services'].update(get_service_def(cont_hostname, port))
 
 
-def add_data_volume(dir_name, docker_compose_obj, host_data_path):
+def add_data_volume(cont_hostname, docker_compose_obj, host_data_path):
     # 'ro' for read-only
-    docker_compose_obj['services'][dir_name].update({'volumes': [f'{host_data_path}:{CONTAINER_DATA_PATH}:ro']})
+    docker_compose_obj['services'][cont_hostname].update({'volumes': [f'{host_data_path}:{CONTAINER_DATA_PATH}:ro']})
 
 
 def build_docker_image(dir_name):
@@ -185,7 +190,7 @@ def gen_display_app_xml(consumer_name, port, description):
     display_tag = ET.Element('display', {'id': consumer_name, 'version': '1.0.0', 'name': description})
     link_tag = ET.SubElement(display_tag, 'link', {'id': 'open', 'name': 'open'})
     url_tag = ET.SubElement(link_tag, 'url')
-    url_tag.text = f'http://{HOSTNAME}:{port}/display?file=${{txt_file.qp}}'
+    url_tag.text = f'http://{HOSTNAME}:{port}/display?file=${{qp("/".join($txt_file.url.split("/")[:2] + ["{GALAXY_CONTNAME}:{GALAXY_CONTPORT}"] + $txt_file.url.split("/")[3:]))}}'
     param_tag = ET.SubElement(link_tag, 'param', {'type': 'data', 'name': 'txt_file', 'url': 'galaxy.txt'})
     ET.ElementTree(display_tag).write(pjoin(get_display_app_xml_fullpath(consumer_name)), encoding='utf-8')
 
