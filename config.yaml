@@ -1,25 +1,33 @@
 storage_path: /Users/krim/demo-archive
 apps:
-  gentle-pretokens:
+  audio-segmenter:
     enabled: True
-    repository: https://github.com/clamsproject/app-gentle-forced-aligner.git
-    branch: pretokens
-  gentle:
+    repository: https://github.com/clamsproject/app-audio-segmenter.git
+    description: "Audio segmentation based on acoustic classifier"
+    type: Audio
+  puakaldi:
     enabled: True
-    repository: https://github.com/clamsproject/app-gentle-forced-aligner.git
-  dlib-facedetection:
+    repository: https://github.com/clamsproject/app-puakaldi-wrapper.git
+    branch: develop
+    description: "PopUp Archive Kaldi ASR"
+    type: Audio,Alignment
+  slatedetection:
     enabled: True
-    repository: https://github.com/clamsproject/app-dlib-facedetection-wrapper.git
+    repository: https://github.com/clamsproject/app-slatedetection.git
+    description: "Slate detector"
+    type: Video
   bardetection:
     enabled: True
     repository: https://github.com/clamsproject/app-barsdetection.git
-  spacy:
+    description: "SMPTE color bar detector"
+    type: Video
+  spacy-nlp:
     enabled: True
     repository: https://github.com/clamsproject/app-spacy-nlp.git
+    description: "SpaCy Text Analyzer"
+    type: Text
 consumers:
-  mmif-viz:
+  mmif-visualizer:
     enabled: True
     repository: https://github.com/clamsproject/mmif-visualizer.git
     description: "Display MMIF annotations"
-
-
