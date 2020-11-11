@@ -134,7 +134,7 @@ def process_all_consumers(consumers_config, docker_compose_obj, host_data_path):
         download(consumer_name, consumer_config)
         build_docker_image(consumer_name)
         add_to_docker_compose(consumer_name, docker_compose_obj, port)
-        add_data_volume(consumer_name, docker_compose_obj, host_data_path)
+        add_data_volume(consumer_name, docker_compose_obj, host_data_path, flask_static=True)
         gen_display_app_xml(consumer_name, port, consumer_config['description'])
         add_to_datatypes_conf_xml(datatypes_conf_tree, consumer_name)
     datatypes_conf_tree.write(datatypes_conf_path, encoding='utf-8')
@@ -152,9 +152,11 @@ def add_to_docker_compose(cont_hostname, docker_compose_obj, port):
     docker_compose_obj['services'].update(get_service_def(cont_hostname, port))
 
 
-def add_data_volume(cont_hostname, docker_compose_obj, host_data_path):
+def add_data_volume(cont_hostname, docker_compose_obj, host_data_path, flask_static=False):
     # 'ro' for read-only
     docker_compose_obj['services'][cont_hostname].update({'volumes': [f'{host_data_path}:{CONTAINER_DATA_PATH}:ro']})
+    if flask_static: 
+        docker_compose_obj['services'][cont_hostname]['volumes'].append(f'{host_data_path}:/app/static/{CONTAINER_DATA_PATH}:ro')
 
 
 def build_docker_image(dir_name):
