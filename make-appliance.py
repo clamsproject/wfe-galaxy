@@ -259,18 +259,18 @@ def git_clone(repo_url, clone_dir, more_params=[]):
     if DEVELOP:
         os.symlink(pjoin('..', clone_dir), clone_dir)
     else:
-        subprocess.run(['git', 'clone', '--depth', '1'] + more_params + [ repo_url, clone_dir])
+        subprocess.run(['git', 'clone', '--depth', '1'] + more_params + [ repo_url, clone_dir], check=True)
 
 
 def docker_build(docker_file_path, build_context, image_name, use_cached=True):
     build_cmd = ['docker', 'build', '-t', image_name, '-f', docker_file_path, build_context]
     if not use_cached:
         build_cmd += ['--no-cache']
-    subprocess.run(build_cmd)
+    subprocess.run(build_cmd, check=True)
 
 
 def docker_run(image_name, container_name):
-    subprocess.run(['docker', 'run', '--rm', '--name', container_name, '-d', image_name])
+    subprocess.run(['docker', 'run', '--rm', '--name', container_name, '-d', image_name], check=True)
 
 
 if __name__ == '__main__':
