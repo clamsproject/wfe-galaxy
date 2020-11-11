@@ -8,6 +8,7 @@ The CLAMS appliance provides a *turn-key* installation of CLAMS-Galaxy instance.
 
 ##### NOTE: Currently the appliance is under active development and not all pieces are guaranteed to work. Always check with this documentation, and leave us comments or issue reports using [the issue tracker](https://github.com/clamsproject/appliance/issues), when you have problems. 
 
+----
 ## Requirements 
 
 * [`docker`](https://www.docker.com/)
@@ -21,10 +22,12 @@ The CLAMS appliance provides a *turn-key* installation of CLAMS-Galaxy instance.
 * `docker` (and `docker-compose`) runs natively on GNU/Linux, and thus runs faster in many scenarios. 
 * Some CLAMS apps require large RAM to run or large HDD space to build. We recommend 8GB RAM and ~100GB storage at minimum. If you're on Mac or Windows, it's recommended to increase RAM and HDD of the docker VM. (see [this](https://docs.docker.com/docker-for-mac/space/))
 
+----
 ## tl;dr
 
 Clone the appliance from the github repository and change the configuration in the `config.yaml` file. Run `make-appliance.py` to build docker images and docker-compose configuration. Finally start a docker network using the docker-compose. 
 
+----
 ## Download
 
 Use `git` to download code from this repository. 
@@ -32,6 +35,7 @@ Use `git` to download code from this repository.
 git clone https://github.com/clamsproject/appliance.git
 ```
 
+----
 ## Configuration
 
 ### Understanding components in the appliance
@@ -84,6 +88,7 @@ An example configuration file is provided as [config.yaml](config.yaml). Configu
     description: "Display MMIF annotations"
   ```
 
+----
 ## Build 
 
 First install python dependencies specified in the [`requirements.txt`](requirements.txt). 
@@ -97,6 +102,7 @@ Then run `make-appliance.py`. Optionally you can pass `-f` flag to ignore any ca
 python make-appliance.py
 ```
 
+----
 ## Deployment
 
 Once all apps and consumers are built (may take hours depending on the number of apps and their dependencies), `docker-compose.yml` file will be generated. You can now start a CLAMS-Galaxy instance with `docker-compose`, in the same directory where the `docker-compose.yml` file was generated. 
@@ -106,6 +112,7 @@ docker-compose up
 
 When the CLAMS-Galaxy instance spins up, CLAMS app containers will use host machine's ports starting from 8001 (each uses a port), and MMIF consumers will use ports from 9001. The Galaxy will be listening to host's port 8080. So make sure those ports are available before starting up the CLAMS instance. Once everything is up and running, you can connect to the CLAMS-Galaxy via http://localhost:8080 or other host addresses. 
 
+----
 ## Shutdown 
 
 To shutdown a running CLAMS appliance instance, just press `ctrl`-`c` to stop the containers. Or you can issue `docker-compose down` under the same directory in a separate terminal to stop *and* remove containers. When containers removed, all intermediate data files generated inside the appliance will be gone too. So when you want to re-use those files (e.g. intermediate MMIF outputs), just use `ctrl`-`c` and later you can restart the network by `docker-compose up`. 
