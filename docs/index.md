@@ -112,8 +112,14 @@ docker-compose up
 
 When the CLAMS-Galaxy instance spins up, CLAMS app containers will use host machine's ports starting from 8001 (each uses a port), and MMIF consumers will use ports from 9001. The Galaxy will be listening to host's port 8080. So make sure those ports are available before starting up the CLAMS instance. Once everything is up and running, you can connect to the CLAMS-Galaxy via http://localhost:8080 or other host addresses. 
 
-----
-## Shutdown 
+### Galaxy Administration 
 
-To shutdown a running CLAMS appliance instance, just press `ctrl`-`c` to stop the containers. Or you can issue `docker-compose down` under the same directory in a separate terminal to stop *and* remove containers. When containers removed, all intermediate data files generated inside the appliance will be gone too. So when you want to re-use those files (e.g. intermediate MMIF outputs), just use `ctrl`-`c` and later you can restart the network by `docker-compose up`. 
+A new admin account for Galaxy web interface will be created at the first run. Once Galaxy is up and running, you can log in using `admin` for user name and `password` for the password (YES, super-secure credential!). The appliance is still experimental and supposed to be running on a local machine. We will continue developing the appliance for more secure and scalable deployment of the CLAMS. 
+
+
+### Shutdown 
+
+To shutdown a running CLAMS appliance instance, just press `ctrl`-`c` to stop the containers. Or you can issue `docker-compose down` under the same directory in a separate terminal to stop *and* remove containers. 
+All Galaxy-internal databases (users, admins, job history, and intermediate output files) are written to a automatically generated docker volume, and the volume will be removed when the Galaxy container is removed. 
+So when you want to re-use those files (e.g. intermediate MMIF outputs), just use `ctrl`-`c` and later you can restart the network by `docker-compose up`. 
 
