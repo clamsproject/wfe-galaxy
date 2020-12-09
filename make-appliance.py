@@ -22,7 +22,7 @@ GALAXY_CONTNAME = 'clams-galaxy'
 GALAXY_CONTPORT = '80'
 GALAXY_HOSTPORT = '8080'
 DOCKER_NETWORK_NAME = 'clams-appliance'
-CONTAINER_DATA_PATH = '/var/archive'
+CONTAINER_DATA_PATH = '/data'
 HOSTNAME = socket.gethostname()
 DEVELOP=False
 
