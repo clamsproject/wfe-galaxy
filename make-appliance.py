@@ -8,7 +8,8 @@ from os.path import join as pjoin
 import xml.etree.ElementTree as ET
 
 
-STORAGE_PATH = 'storage_path'
+ARCHIVE_PATH = 'archive_path'
+DB_PATH = 'db_path'
 APPS = 'apps'
 APP_PREFIX = 'app-'
 CONSUMERS = 'consumers'
@@ -47,7 +48,7 @@ def clean(directory):
 
 def read_config(config_file_path):
     configs = yaml.load(open(config_file_path).read())
-    configs[STORAGE_PATH] = os.path.expandvars(os.path.expanduser(configs[STORAGE_PATH]))
+    configs[ARCHIVE_PATH] = os.path.expandvars(os.path.expanduser(configs[ARCHIVE_PATH]))
     return configs
 
 
@@ -62,10 +63,12 @@ def create_docker_compose(config, rebuild=False, develop=False):
     if rebuild:
         clean('.')
     prefixed_app_names = list(map(lambda x: APP_PREFIX + x, config[APPS].keys()))
-    docker_compose = prep_galaxy(prefixed_app_names, config[STORAGE_PATH])
-    process_all_apps(config[APPS], docker_compose, config[STORAGE_PATH])
-    process_all_consumers(config[CONSUMERS], docker_compose, config[STORAGE_PATH])
-    gen_db_loc_files(config[STORAGE_PATH])
+    if DB_PATH not in config:
+        config[DB_PATH] = ""
+    docker_compose = prep_galaxy(prefixed_app_names, config[ARCHIVE_PATH], config[DB_PATH])
+    process_all_apps(config[APPS], docker_compose, config[ARCHIVE_PATH])
+    process_all_consumers(config[CONSUMERS], docker_compose, config[ARCHIVE_PATH])
+    gen_db_loc_files(config[ARCHIVE_PATH])
     docker_build(pjoin(GALAXY_LOCAL_PATH, 'Dockerfile'), GALAXY_LOCAL_PATH, get_docker_image_name(GALAXY_LOCAL_PATH), use_cached=False)
     with open('docker-compose.yml', 'w') as compose_file:
         yaml.SafeDumper.add_representer(
@@ -80,7 +83,7 @@ def create_base_compose_obj():
     return {'version': '3', 'services': {}, 'networks': {DOCKER_NETWORK_NAME: None}}
 
 
-def prep_galaxy(dependencies, host_data_path):
+def prep_galaxy(dependencies, host_data_path, host_db_path):
     download_galaxy_mods()
     compose_obj = create_base_compose_obj()
     galaxy_service = get_service_def(GALAXY_CONTNAME, int(GALAXY_HOSTPORT))
@@ -89,6 +92,8 @@ def prep_galaxy(dependencies, host_data_path):
     galaxy_service[GALAXY_CONTNAME].update({'privileged': 'true', 'depends_on': dependencies, 'ports': [f'{GALAXY_HOSTPORT}:{GALAXY_CONTPORT}']})
     compose_obj['services'].update(galaxy_service)
     add_data_volume(GALAXY_CONTNAME, compose_obj, host_data_path)
+    if len(host_db_path) > 0:
+        add_galaxy_export_volume(GALAXY_CONTNAME, compose_obj, host_db_path)
     return compose_obj
 
 
@@ -129,6 +134,8 @@ def get_tool_config_xml_filename(app_name):
 def process_all_consumers(consumers_config, docker_compose_obj, host_data_path):
     datatypes_conf_path = pjoin(GALAXY_LOCAL_PATH, 'config', 'datatypes_conf.xml')
     datatypes_conf_tree = ET.parse(datatypes_conf_path)
+    if not consumers_config:
+        consumers_config = {}
     for port, (consumer_name, consumer_config) in enumerate(consumers_config.items(), 9001):
         consumer_name = f'{CONSUMER_PREFIX}{consumer_name}'
         download(consumer_name, consumer_config)
@@ -156,7 +163,11 @@ def add_data_volume(cont_hostname, docker_compose_obj, host_data_path, flask_sta
     # 'ro' for read-only
     docker_compose_obj['services'][cont_hostname].update({'volumes': [f'{host_data_path}:{CONTAINER_DATA_PATH}:ro']})
     if flask_static: 
-        docker_compose_obj['services'][cont_hostname]['volumes'].append(f'{host_data_path}:/app/static/{CONTAINER_DATA_PATH}:ro')
+        docker_compose_obj['services'][cont_hostname]['volumes'].append(f'{host_data_path}:/app/static{CONTAINER_DATA_PATH}:ro')
+
+
+def add_galaxy_export_volume(cont_hostname, docker_compose_obj, host_db_path):
+    docker_compose_obj['services'][cont_hostname].update({'volumes': [f'{host_db_path}:/export']})
 
 
 def build_docker_image(dir_name):

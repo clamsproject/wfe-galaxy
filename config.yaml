@@ -1,4 +1,5 @@
-storage_path: /Users/krim/demo-archive
+archive_path: ~/demo-archive-less
+db_path: ~/clams-galaxy-export
 apps:
   audio-segmenter:
     enabled: True

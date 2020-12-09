@@ -39,7 +39,7 @@ git clone https://github.com/clamsproject/appliance.git
 ## Configuration
 
 ### Understanding components in the appliance
-Before running a CLAMS appliance, one must configure the appliance with desired CLAMS apps, MMIF consumers, as well as the storage path of the archival material to process. 
+Before running a CLAMS appliance, one must configure the appliance with desired CLAMS apps, MMIF consumers, as well as a directory path where archival material to process is and optionally a host path to store outputs from CLAMS apps.
 All configuration are provided via `config.yaml` file. 
 While making an appliance (using `make-appliance.py` script), the maker will download all configured apps and consumers and build docker images for each of them. 
 Those dockerized apps (and consumers) will be automatically integrated into a customized [Galaxy workflow engine](https://galaxyproject.org/), which will serve as the primary graphical user interface (GUI) for archivists. 
@@ -62,9 +62,10 @@ MMIF consumers, in the context of the CLAMS appliance, are software that process
 The appliance will be running as a network of docker containers, sharing a common *archive* folder located in the host machine. In the future, we will support direct network mounts, but currently only locally mounted folders are supported. It doesn't matter where the archive folder is mounted on the host machine. But for security reasons, we highly recommend NOT to place it in a system directory (such as the root `/`). In that *archive* folder, users must create four sub-directories; `video`, `audio`, `image`, and `text`. And actual media files should be placed (either physically or symbolically) under one of those sub-directory based on the type of the media. 
 
 ### YAML config
-An example configuration file is provided as [config.yaml](config.yaml). Configuration file must be written in [YAML](https://yaml.org/start.html) format and has three top-level sections; `storage_path`, `apps`, and `consumers`. 
+An example configuration file is provided as [config.yaml](config.yaml). Configuration file must be written in [YAML](https://yaml.org/start.html) format and has three top-level sections; `archive_path`, `apps`, and `consumers`. In addition to those three, one can also configure `db_path`. See below for details. 
 
-* `storage_path` (storage configuration): Local directory name where data (video, audio, image, and/or text) is stored. Data must be organized under subdirectories `video`, `audio`, `image`, and `test` based on the file type. The appliance does not check actual MIME types or file extensions of those files while building CLAMS-Galaxy instance. So it is users' responsibility to make sure each subdirectory contains proper files. 
+* `archive_path` (archive configuration): Local directory name where data (video, audio, image, and/or text) is stored. Data must be organized under subdirectories `video`, `audio`, `image`, and `test` based on the file type. The appliance does not check actual MIME types or file extensions of those files while building CLAMS-Galaxy instance. So it is users' responsibility to make sure each subdirectory contains proper files. 
+* `db_path` (OPTIONAL, Galaxy database location): Local directory name where Galaxy database and output files will be stored. This field is optional, and when it's not given Galaxy DB and output files are volatile, meaning when the appliance is properly terminated, all of those will be deleted. 
 * `apps` (CLAMS apps configuration): List of CLAMS app objects. An app object is essentially a pointer to an accessible git repository that holds source code (including a `Dockerfile` and optionally `config.xml` for Galaxy) of the app. An object has to have a human friendly alias as the key of the object that associated with `repository`, `branch`, `description`, `type` and `enabled` key-value pairs. For example; 
   ``` yaml
   puakaldi:
