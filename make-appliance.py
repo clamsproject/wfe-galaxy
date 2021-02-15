@@ -114,12 +114,13 @@ def process_all_apps(apps_config, docker_compose_obj, host_data_path):
     port = 5000
     for host_port, (app_name, app_config) in enumerate(apps_config.items(), 8001):
         app_name = f'{APP_PREFIX}{app_name}'
-        download(app_name, app_config)
-        build_docker_image(app_name)
-        add_to_docker_compose(app_name, docker_compose_obj, port)
-        add_data_volume(app_name, docker_compose_obj, host_data_path)
-        config_xml_tree = gen_app_config_xml(app_name, app_config, port)
-        add_to_tool_conf_xml(tool_conf_tree, config_xml_tree, app_name)
+        if app_config['enabled']:
+            download(app_name, app_config)
+            build_docker_image(app_name)
+            add_to_docker_compose(app_name, docker_compose_obj, port)
+            add_data_volume(app_name, docker_compose_obj, host_data_path)
+            config_xml_tree = gen_app_config_xml(app_name, app_config, port)
+            add_to_tool_conf_xml(tool_conf_tree, config_xml_tree, app_name)
     tool_conf_tree.write(tool_conf_path, encoding='utf-8', xml_declaration=True)
 
 
