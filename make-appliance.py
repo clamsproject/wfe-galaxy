@@ -62,7 +62,11 @@ def create_docker_compose(config, rebuild=False, develop=False):
     DEVELOP = develop
     if rebuild:
         clean('.')
-    prefixed_app_names = list(map(lambda x: APP_PREFIX + x, config[APPS].keys()))
+    prefixed_app_names = list(map(
+        lambda x: APP_PREFIX + x,
+        [appname for appname in config[APPS].keys() if config[APPS][appname]['enabled']]
+    ))
+
     if DB_PATH not in config:
         config[DB_PATH] = ""
     docker_compose = prep_galaxy(prefixed_app_names, config[ARCHIVE_PATH], config[DB_PATH])
@@ -139,12 +143,13 @@ def process_all_consumers(consumers_config, docker_compose_obj, host_data_path):
         consumers_config = {}
     for port, (consumer_name, consumer_config) in enumerate(consumers_config.items(), 9001):
         consumer_name = f'{CONSUMER_PREFIX}{consumer_name}'
-        download(consumer_name, consumer_config)
-        build_docker_image(consumer_name)
-        add_to_docker_compose(consumer_name, docker_compose_obj, port)
-        add_data_volume(consumer_name, docker_compose_obj, host_data_path, flask_static=True)
-        gen_display_app_xml(consumer_name, port, consumer_config['description'])
-        add_to_datatypes_conf_xml(datatypes_conf_tree, consumer_name)
+        if consumer_config['enabled']:
+            download(consumer_name, consumer_config)
+            build_docker_image(consumer_name)
+            add_to_docker_compose(consumer_name, docker_compose_obj, port)
+            add_data_volume(consumer_name, docker_compose_obj, host_data_path, flask_static=True)
+            gen_display_app_xml(consumer_name, port, consumer_config['description'])
+            add_to_datatypes_conf_xml(datatypes_conf_tree, consumer_name)
     datatypes_conf_tree.write(datatypes_conf_path, encoding='utf-8')
 
 
