@@ -55,6 +55,9 @@ hs_err_pid* # virtual machine crash logs, see http://www.java.com/en/download/he
 **/*.pyc
 **/__pycache__
 
+# ruby & jekyll
+Gemfile.lock
+
 # shared folders
 dropbox_shared*/
 github_shared*/
