@@ -17,7 +17,7 @@ author: Brandeis LLC
 # --- List of links in the navigation bar --- #
 
 navbar-links:
-  HOME: "/"
+  APPLIANCE: "/"
   CLAMS: "https://clams.ai"
   APP-DIRECTORY: "https://apps.clams.ai"
 
