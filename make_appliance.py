@@ -1,12 +1,16 @@
 #! /usr/bin/env python3
-import yaml
-
+import os
 import socket
 import subprocess
-import os
-from os.path import join as pjoin
+import time
+import urllib.request
 import xml.etree.ElementTree as ET
+from http.client import RemoteDisconnected
+from os.path import join as pjoin
 
+import docker
+import yaml
+from docker.models.containers import Container
 
 ARCHIVE_PATH = 'archive_path'
 DB_PATH = 'db_path'
@@ -25,6 +29,7 @@ DOCKER_NETWORK_NAME = 'clams-appliance'
 CONTAINER_DATA_PATH = '/data'
 HOSTNAME = socket.gethostname()
 DEVELOP = False
+docker_engine = docker.from_env()
 
 
 def get_docker_image_name(app_name):
@@ -73,7 +78,7 @@ def create_docker_compose(config, rebuild=False, develop=False):
     process_all_apps(config[APPS], docker_compose, config[ARCHIVE_PATH])
     process_all_consumers(config[CONSUMERS], docker_compose, config[ARCHIVE_PATH])
     gen_db_loc_files(config[ARCHIVE_PATH])
-    docker_build(pjoin(GALAXY_LOCAL_PATH, 'Dockerfile'), GALAXY_LOCAL_PATH, get_docker_image_name(GALAXY_LOCAL_PATH), use_cached=False)
+    docker_engine.images.build(path=GALAXY_LOCAL_PATH, dockerfile='Dockerfile', tag=get_docker_image_name(GALAXY_LOCAL_PATH), nocache=True)
     with open('docker-compose.yml', 'w') as compose_file:
         yaml.SafeDumper.add_representer(
             type(None),
@@ -177,13 +182,39 @@ def add_galaxy_export_volume(cont_hostname, docker_compose_obj, host_db_path):
 
 
 def build_docker_image(dir_name):
-    docker_build(pjoin(dir_name, 'Dockerfile'), dir_name, get_docker_image_name(dir_name))
+    print(f"Building a Docker image from {dir_name}...")
+    image = docker_engine.images.build(path=dir_name, dockerfile='Dockerfile', tag=get_docker_image_name(dir_name), nocache=False)[0]
+    print(f"Built: {image.id}")
 
 
 def gen_app_config_xml(app_name, app_config, port):
     curl_cmd = f"curl -s -X PUT -H 'Content-Type: application/json' -d @$input {app_name}:{port} > $output"
+    image_name = get_docker_image_name(app_name)
     if os.path.exists(pjoin(app_name, 'config.xml')):
         config_xml_tree = ET.parse(pjoin(app_name, 'config.xml'))
+    elif docker_engine.images.list(name=image_name):
+        image_name = get_docker_image_name(app_name)
+        container: Container = docker_engine.containers.run(image=image_name, remove=True, detach=True,
+                                                            ports={port: PRIMARY_HOSTPORT})
+        attempts = 0
+        appmetadata = None
+        try:
+            while attempts < 2 and appmetadata is None:
+                try:
+                    time.sleep(1)  # give a second for server to start update 
+                    response = urllib.request.urlopen(f'http://127.0.0.1:{PRIMARY_HOSTPORT}')
+                    appmetadata = response.read()
+                    # TODO (krim @ 7/14/21): implemant appmetadata -> config.xml
+                    config_xml_tree = configyml_to_config_xml_tree(app_name, app_config)
+                    break
+                    # generate xmltree
+                except RemoteDisconnected:
+                    attempts += 1
+            else:
+                # TODO (krim @ 7/13/21): should I just use app_config and continue? 
+                raise ConnectionError(f"app \"{app_name}\" is not responding, and galaxy config.xml cannot be generated")
+        finally:
+            container.stop()
     else:
         config_xml_tree = configyml_to_config_xml_tree(app_name, app_config)
 
@@ -284,13 +315,6 @@ def git_clone(repo_url, clone_dir, more_params=[]):
         os.symlink(pjoin('..', clone_dir), clone_dir)
     else:
         subprocess.run(['git', 'clone', '--depth', '1'] + more_params + [ repo_url, clone_dir], check=True)
-
-
-def docker_build(docker_file_path, build_context, image_name, use_cached=True):
-    build_cmd = ['docker', 'build', '-t', image_name, '-f', docker_file_path, build_context]
-    if not use_cached:
-        build_cmd += ['--no-cache']
-    subprocess.run(build_cmd, check=True)
 
 
 def docker_run(image_name, container_name):
