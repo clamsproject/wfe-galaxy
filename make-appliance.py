@@ -93,7 +93,7 @@ def prep_galaxy(dependencies, host_data_path, host_db_path):
     galaxy_service = get_service_def(GALAXY_CONTNAME, int(PRIMARY_HOSTPORT))
     # even though we configure `http` address to be bound to 0.0.0.0:5000 in galaxy.yml, 
     # external communication still needs to be using port 80 for underlying wsgi modules to work
-    galaxy_service[GALAXY_CONTNAME].update({'privileged': 'true', 'depends_on': dependencies, 'ports': [f'{PRIMARY_HOSTPORT}:{GALAXY_CONTPORT}']})
+    galaxy_service[GALAXY_CONTNAME].update({'privileged': True, 'depends_on': dependencies, 'ports': [f'{PRIMARY_HOSTPORT}:{GALAXY_CONTPORT}']})
     compose_obj['services'].update(galaxy_service)
     add_data_volume(GALAXY_CONTNAME, compose_obj, host_data_path)
     if len(host_db_path) > 0:
@@ -189,7 +189,10 @@ def gen_app_config_xml(app_name, app_config, port):
 
     command_tag = config_xml_tree.find('command')
     command_tag.text = curl_cmd
-    del command_tag.attrib['interpreter']
+    try: 
+        del command_tag.attrib['interpreter']
+    except KeyError as ignored:
+        pass
     config_xml_tree.write(pjoin(get_tool_config_xml_fullpath(app_name)), encoding='utf-8')
     return config_xml_tree
 
