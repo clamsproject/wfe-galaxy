@@ -25,7 +25,7 @@ The CLAMS appliance provides a *turn-key* installation of CLAMS-Galaxy instance.
 ----
 ## tl;dr
 
-Clone the appliance from the github repository and change the configuration in the `config.yaml` file. Run `make-appliance.py` to build docker images and docker-compose configuration. Finally start a docker network using the docker-compose. 
+Clone the appliance from the github repository and change the configuration in the `config.yaml` file. Run `make_appliance.py` to build docker images and docker-compose configuration. Finally start a docker network using the docker-compose. 
 
 ----
 ## Download
@@ -41,7 +41,7 @@ git clone https://github.com/clamsproject/appliance.git
 ### Understanding components in the appliance
 Before running a CLAMS appliance, one must configure the appliance with desired CLAMS apps, MMIF consumers, as well as a directory path where archival material to process is and optionally a host path to store outputs from CLAMS apps.
 All configuration are provided via `config.yaml` file. 
-While making an appliance (using `make-appliance.py` script), the maker will download all configured apps and consumers and build docker images for each of them. 
+While making an appliance (using `make_appliance.py` script), the maker will download all configured apps and consumers and build docker images for each of them. 
 Those dockerized apps (and consumers) will be automatically integrated into a customized [Galaxy workflow engine](https://galaxyproject.org/), which will serve as the primary graphical user interface (GUI) for archivists. 
 Additionally, the maker will also find all flies under the archive path and create a media selector tool for the Galaxy instance. 
 
@@ -98,9 +98,9 @@ First install python dependencies specified in the [`requirements.txt`](requirem
 pip install -r requirements.txt
 ```
 
-Then run `make-appliance.py`. Optionally you can pass `-f` flag to ignore any cached docker images and build everything from scratch. 
+Then run `make_appliance.py`. Optionally you can pass `-f` flag to ignore any cached docker images and build everything from scratch. 
 ```
-python make-appliance.py
+python make_appliance.py
 ```
 
 ----
