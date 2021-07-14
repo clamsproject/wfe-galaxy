@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+import datetime
 import os
 import socket
 import subprocess
@@ -10,10 +11,10 @@ from os.path import join as pjoin
 
 import docker
 import yaml
+from docker import errors
 from docker.models.containers import Container
 
 ARCHIVE_PATH = 'archive_path'
-DB_PATH = 'db_path'
 APPS = 'apps'
 APP_PREFIX = 'app-'
 CONSUMERS = 'consumers'
@@ -59,10 +60,10 @@ def read_config(config_file_path):
 
 def download_galaxy_mods():
     if not os.path.exists(GALAXY_LOCAL_PATH):
-        git_clone('https://github.com/clamsproject/clams-galaxy.git', GALAXY_LOCAL_PATH, [])
+        download('https://github.com/clamsproject/clams-galaxy.git', GALAXY_LOCAL_PATH, [])
 
 
-def create_docker_compose(config, rebuild=False, develop=False):
+def create_docker_compose(config, export_volumename, rebuild=False, develop=False):
     global DEVELOP
     DEVELOP = develop
     if rebuild:
@@ -72,9 +73,7 @@ def create_docker_compose(config, rebuild=False, develop=False):
         [appname for appname in config[APPS].keys() if config[APPS][appname]['enabled']]
     ))
 
-    if DB_PATH not in config:
-        config[DB_PATH] = ""
-    docker_compose = prep_galaxy(prefixed_app_names, config[ARCHIVE_PATH], config[DB_PATH])
+    docker_compose = prep_galaxy(export_volumename, prefixed_app_names, config[ARCHIVE_PATH])
     process_all_apps(config[APPS], docker_compose, config[ARCHIVE_PATH])
     process_all_consumers(config[CONSUMERS], docker_compose, config[ARCHIVE_PATH])
     gen_db_loc_files(config[ARCHIVE_PATH])
@@ -89,10 +88,10 @@ def create_docker_compose(config, rebuild=False, develop=False):
 
 
 def create_base_compose_obj():
-    return {'version': '3', 'services': {}, 'networks': {DOCKER_NETWORK_NAME: None}}
+    return {'version': '3', 'services': {}, 'networks': {DOCKER_NETWORK_NAME: None}, 'volumes': {}}
 
 
-def prep_galaxy(dependencies, host_data_path, host_db_path):
+def prep_galaxy(export_volumename, dependencies, host_data_path):
     download_galaxy_mods()
     compose_obj = create_base_compose_obj()
     galaxy_service = get_service_def(GALAXY_CONTNAME, int(PRIMARY_HOSTPORT))
@@ -101,8 +100,7 @@ def prep_galaxy(dependencies, host_data_path, host_db_path):
     galaxy_service[GALAXY_CONTNAME].update({'privileged': True, 'depends_on': dependencies, 'ports': [f'{PRIMARY_HOSTPORT}:{GALAXY_CONTPORT}']})
     compose_obj['services'].update(galaxy_service)
     add_data_volume(GALAXY_CONTNAME, compose_obj, host_data_path)
-    if len(host_db_path) > 0:
-        add_galaxy_export_volume(GALAXY_CONTNAME, compose_obj, host_db_path)
+    add_galaxy_export_volume(compose_obj, GALAXY_CONTNAME, export_volumename)
     return compose_obj
 
 
@@ -124,7 +122,7 @@ def process_all_apps(apps_config, docker_compose_obj, host_data_path):
     for host_port, (app_name, app_config) in enumerate(apps_config.items(), 8001):
         app_name = f'{APP_PREFIX}{app_name}'
         if app_config['enabled']:
-            download(app_name, app_config)
+            download_app(app_name, app_config)
             build_docker_image(app_name)
             add_to_docker_compose(app_name, docker_compose_obj, host_port)
             add_data_volume(app_name, docker_compose_obj, host_data_path)
@@ -149,7 +147,7 @@ def process_all_consumers(consumers_config, docker_compose_obj, host_data_path):
     for port, (consumer_name, consumer_config) in enumerate(consumers_config.items(), 9001):
         consumer_name = f'{CONSUMER_PREFIX}{consumer_name}'
         if consumer_config['enabled']:
-            download(consumer_name, consumer_config)
+            download_app(consumer_name, consumer_config)
             build_docker_image(consumer_name)
             add_to_docker_compose(consumer_name, docker_compose_obj, port)
             add_data_volume(consumer_name, docker_compose_obj, host_data_path, flask_static=True)
@@ -177,8 +175,13 @@ def add_data_volume(cont_hostname, docker_compose_obj, host_data_path, flask_sta
         docker_compose_obj['services'][cont_hostname]['volumes'].append(f'{host_data_path}:/app/static{CONTAINER_DATA_PATH}:ro')
 
 
-def add_galaxy_export_volume(cont_hostname, docker_compose_obj, host_db_path):
-    docker_compose_obj['services'][cont_hostname].update({'volumes': [f'{host_db_path}:/export']})
+def add_galaxy_export_volume(docker_compose_obj, cont_hostname, volumename):
+    try:
+        docker_engine.volumes.get(volumename)
+    except docker.errors.NotFound:
+        docker_engine.volumes.create(volumename)
+    docker_compose_obj['services'][cont_hostname].update({'volumes': [f'{volumename}:/export']})
+    docker_compose_obj['volumes'][volumename] = {'external': True}
 
 
 def build_docker_image(dir_name):
@@ -301,16 +304,16 @@ def gen_db_loc_files(host_data_path):
                         loc_file.write(f'{f_name}\t{pjoin(CONTAINER_DATA_PATH, mtype, f_name)}\n')
 
 
-def download(app_name, app_config):
+def download_app(app_name, app_config):
     if app_config['enabled'] and not os.path.exists(app_name):
         if 'branch' in app_config:
             more_params = ['--branch', app_config['branch']]
         else:
             more_params = []
-        git_clone(app_config['repository'], app_name, more_params)
+        download(app_config['repository'], app_name, more_params)
 
 
-def git_clone(repo_url, clone_dir, more_params=[]):
+def download(repo_url, clone_dir, more_params=[]):
     if DEVELOP:
         os.symlink(pjoin('..', clone_dir), clone_dir)
     else:
@@ -327,6 +330,13 @@ if __name__ == '__main__':
         description="Make a CLAMS-Galaxy appliance using docker-compose"
     )
     parser.add_argument(
+        '-v', '--volumename',
+        default='clams_appliance_volume',
+        action='store',
+        nargs='?',
+        help=''
+    )
+    parser.add_argument(
         '-d', '--develop',
         action='store_true',
         help='Run the script in *develop* mode. In develop mode Galaxy, apps, and consumers are copied from local file system, instead of being downloaded from github.'
@@ -337,6 +347,10 @@ if __name__ == '__main__':
         help='Delete existing CLAMS Apps and Galaxy. Then download all and re-build docker images.'
     )
     args = parser.parse_args()
+    galaxy_export_volumename = args.volumename
+    if args.develop:
+        now = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
+        galaxy_export_volumename = f'{galaxy_export_volumename}_{now}' 
 
-    create_docker_compose(read_config('config.yaml'), args.force_rebuild, args.develop)
+    create_docker_compose(read_config('config.yaml'), galaxy_export_volumename, args.force_rebuild, args.develop)
     # subprocess.run(['docker-compose', 'up'])
