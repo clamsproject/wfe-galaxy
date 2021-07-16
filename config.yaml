@@ -1,24 +1,27 @@
-archive_path: ~/demo-archive-less
-db_path: ~/clams-galaxy-export
+archive_path: ~/Projects/clams/clamsproject/demo-archive/
 apps:
-  audio-segmenter:
+  ina-speech-segmenter-wrapper:
     enabled: True
-    repository: https://github.com/clamsproject/app-audio-segmenter.git
-    description: "Audio segmentation based on acoustic classifier"
-    type: Audio
-  puakaldi:
+    repository: https://github.com/clamsproject/app-inaspeechsegmenter-wrapper.git
+    description: "Audio segmentation based on acoustic classifier, developed by INA"
+    branch: v0.2.3
+  gentle-forced-aligner-wrapper:
+    enabled: True
+    repository: https://github.com/clamsproject/app-gentle-forced-aligner-wrapper.git
+    description: "Robust yet lenient forced-aligner built on Kaldi. A tool for aligning speech with text."
+    branch: v0.1.0
+  aapb-pua-kaldi-wrapper:
     enabled: True
     repository: https://github.com/clamsproject/app-puakaldi-wrapper.git
-    branch: develop
-    description: "PopUp Archive Kaldi ASR"
-    type: Audio,Alignment
+    branch: v0.2.2
+    description: "AAPB-PopUp Archive Kaldi ASR"
   slatedetection:
-    enabled: True
+    enabled: False
     repository: https://github.com/clamsproject/app-slatedetection.git
     description: "Slate detector"
     type: Video
   bardetection:
-    enabled: True
+    enabled: False
     repository: https://github.com/clamsproject/app-barsdetection.git
     description: "SMPTE color bar detector"
     type: Video

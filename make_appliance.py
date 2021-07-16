@@ -234,15 +234,14 @@ def gen_app_config_xml(app_name, app_config, port):
         attempts = 0
         appmetadata = None
         try:
-            while attempts < 2 and appmetadata is None:
+            while attempts < 20 and appmetadata is None:
                 try:
                     time.sleep(1)  # give a second for server to start update 
-                    response = urllib.request.urlopen(f'http://127.0.0.1:{PRIMARY_HOSTPORT}')
-                    appmetadata = response.read()
+                    appmetadata = urllib.request.urlopen(f'http://127.0.0.1:{PRIMARY_HOSTPORT}').read()
                     config_xml_tree = appmetadata_to_config_xml_tree(appmetadata)
                     break
                     # generate xmltree
-                except RemoteDisconnected:
+                except (RemoteDisconnected, ConnectionResetError):
                     attempts += 1
             else:
                 # TODO (krim @ 7/13/21): should I just use app_config and continue? 
@@ -332,34 +331,35 @@ def appmetadata_to_config_xml_tree(appmetadata):
     runtime_params_section.set('name', 'runtime_params')
     runtime_params_section.set('title', 'Configurations')
     runtime_params_section.set('expanded', 'true')
-    for parameter in appmetadata['parameters']:
-        runtime_param_tag = ET.SubElement(runtime_params_section, 'param')
-        runtime_param_tag.set('name', parameter['name'])
-        runtime_param_tag.set('help', parameter['description'])
-        if parameter['type'] == 'integer':
-            runtime_param_tag.set('type', 'integer')
-            if 'default' in parameter:
-                runtime_param_tag.set('value', str(parameter['default']))
-        elif parameter['type'] == 'number':
-            runtime_param_tag.set('type', 'float')
-            if 'default' in parameter:
-                runtime_param_tag.set('value', str(parameter['default']))
-        elif parameter['type'] == 'string':
-            runtime_param_tag.set('type', 'text')
-            if 'choices' in parameter:
-                for choice in parameter['choices']:
-                    option_tag = ET.SubElement(runtime_param_tag, 'option')
-                    option_tag.set('value', choice)
-                    option_tag.text = choice
-                    if 'default' in parameter and choice == parameter['choices']:
-                        option_tag.set('selected', 'true')
-            else:
+    if 'parameters' in appmetadata:
+        for parameter in appmetadata['parameters']:
+            runtime_param_tag = ET.SubElement(runtime_params_section, 'param')
+            runtime_param_tag.set('name', parameter['name'])
+            runtime_param_tag.set('help', parameter['description'])
+            if parameter['type'] == 'integer':
+                runtime_param_tag.set('type', 'integer')
                 if 'default' in parameter:
-                    runtime_param_tag.set('value', parameter['default'])
-        elif parameter['type'] == 'boolean':
-            runtime_param_tag.set('type', 'boolean')
-            if 'default' in parameter and parameter['default'] == 'true':
-                runtime_param_tag.set('checked', 'true')
+                    runtime_param_tag.set('value', str(parameter['default']))
+            elif parameter['type'] == 'number':
+                runtime_param_tag.set('type', 'float')
+                if 'default' in parameter:
+                    runtime_param_tag.set('value', str(parameter['default']))
+            elif parameter['type'] == 'string':
+                runtime_param_tag.set('type', 'text')
+                if 'choices' in parameter:
+                    for choice in parameter['choices']:
+                        option_tag = ET.SubElement(runtime_param_tag, 'option')
+                        option_tag.set('value', choice)
+                        option_tag.text = choice
+                        if 'default' in parameter and choice == parameter['choices']:
+                            option_tag.set('selected', 'true')
+                else:
+                    if 'default' in parameter:
+                        runtime_param_tag.set('value', parameter['default'])
+            elif parameter['type'] == 'boolean':
+                runtime_param_tag.set('type', 'boolean')
+                if 'default' in parameter and parameter['default'] == 'true':
+                    runtime_param_tag.set('checked', 'true')
         
     outputs_tag = ET.SubElement(tool_tag, 'outputs')
     output_data_tag = ET.SubElement(outputs_tag, 'data')
@@ -374,11 +374,11 @@ def appmetadata_to_config_xml_tree(appmetadata):
     help_msg.write(f"\nLicense\n=======\n")
     help_msg.write(f"This app is licensed under {appmetadata['license']}.\n")
     help_msg.write(f"\nInput Requirements\n==================\n")
-    help_msg.write(f"This app can take a MMIF with these annotations:\n")
+    help_msg.write(f"This app can take a MMIF with these annotations:\n\n")
     for inp in appmetadata['input']:
         help_msg.write(f"* {inp['@type']}{'' if inp['required'] else ' (optional)'}\n")
-    help_msg.write(f"And the app can add these annotations:\n")
     help_msg.write(f"\nOutput Annotations\n==================\n")
+    help_msg.write(f"And the app can add these annotations:\n\n")
     for outp in appmetadata['output']:
         help_msg.write(f"* {outp['@type']}\n")
     help_tag.append(CDATA(help_msg.getvalue()))
